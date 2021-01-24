@@ -1,6 +1,7 @@
-from flask import Flask, json
-from flask_restful import Resource, Api
+from flask import Flask, json, request
+from flask_restful import Api
 
+from DBManager import *
 
 app = Flask(__name__)
 api = Api(app)
@@ -8,11 +9,22 @@ api = Api(app)
 
 @app.route("/users", methods=["POST"])
 def join():
-    return {'status': 'success'}
+    user = request.get_json()
+    print("user : ", user)
+    if "id" and "pw" and "name" and "country" and "device_num" in user:
+        req_result, msg = join(user["id"], user["pw"], user["name"], user["country"], user["device_num"])
+        if req_result:
+            return {'status': 'success'}
+        else:
+            return {'status': 'failed'}
+    else:
+        return {'status': 'failed',
+                'detail': 'not enough request contents'}
 
 
 @app.route("/users", methods=["DELETE"])
 def deㅣ_user():
+    #
     return {'status': 'success'}
 
 
@@ -55,4 +67,5 @@ def result(game_token):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+    # app.run(host="192.168.0.100", port=5000, debug=True)
