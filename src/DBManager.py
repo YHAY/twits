@@ -54,6 +54,8 @@ class DBManager:
             elif table == "game":
                 new_table_list.remove(GAME)
 
+
+
         print("new_table_list : ", new_table_list)
         for element in new_table_list:
             print(element)
@@ -62,6 +64,9 @@ class DBManager:
             # self.create_table(PROFILE)
             # self.create_table(MATCH)
             # self.create_table(GAME)
+
+    def __del__(self):
+        self.conn.close()
 
     # country : korea(0)
     def create_table(self, mode):
@@ -91,9 +96,10 @@ class DBManager:
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
         elif mode == MATCH:
             sql = "CREATE TABLE IF NOT EXISTS matches (" \
-                  " user_token char(36)," \
+                  " user_token char(36) PRIMARY KEY," \
                   " state int unsigned," \
-                  " matched_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" \
+                  " matched_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," \
+                  " CONSTRAINT matches_unique UNIQUE (user_token)"\
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
         elif mode == GAME:
             sql = "CREATE TABLE IF NOT EXISTS game (" \
@@ -165,18 +171,25 @@ class DBManager:
 
     def set_wait(self, user_token):
         # sql = "update match set "
-        sql = "INSERT INTO matches (user_token, state) values (%s, %s) "
-        val = (user_token, 0)
-        self.cur.execute(sql, val)
+        sql = "SELECT user_token from matches where user_token=%s"
+        self.cur.execute(sql, user_token)
         rows = self.cur.fetchall()
         self.conn.commit()
-        return rows
+        if not rows: #no exist
+            sql = "INSERT INTO matches (user_token, state) values (%s, %s) "
+            val = (user_token, 0)
+            self.cur.execute(sql, val)
+            rows = self.cur.fetchall()
+            self.conn.commit()
+            return rows
+        else: #exist
+            return None
 
     # def update_matching(self, user_token, rival_uuid):
         #insert game table.
 
 
-# db_manager = DBManager()
+db_manager = DBManager()
 # new_table_list = [PROFILE, USER, MATCH, GAME]
 # for table in new_table_list:
 #     print(table)
@@ -184,7 +197,8 @@ class DBManager:
 # conn.close()
 # create_table(USER)
 # join("aaa", "1434", "kkk", 1, "MAC123")
+db_manager.set_wait("b878c7be-393a-4259-8011-0772154613d9")
 
 # print(db_manager.login("aaa", "1434", "MAC123"))
-# db_manager.get_match("b878c7be-393a-4259-8011-0772154613d9")
+# db_manager.get_match("b878c7be-393a-4259-8011-0772154613d89")
 # conn.close()

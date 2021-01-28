@@ -54,27 +54,33 @@ def deㅣ_user():
 @app.route("/users", methods=["GET"])
 def login():
     user = request.get_json()
-    if not user: # no exist json body.
-        return {
+    status_code = 200
+    if not user:  # no exist json body.
+        resp = {
             "error_code": 20003,
             "message": "login Failed",
             "detail": "Check your request. Not enough requests."
         }
-    if "id" and "pw" and "device_number" in user:
-        token = db_manager.login(user["id"], user["pw"], user["device_number"])
-        resp = {'token': token}
-        response = app.response_class(
-                response=json.dumps(resp),
-                status=200,
-                mimetype='application/json'
-            )
-        return response
-    else: # lack of json body.
-        return {
-            "error_code": 20003,
-            "message": "login Failed",
-            "detail": "Check your request. Not enough requests."
-        }
+        status_code = 401
+    else:
+        if "id" and "pw" and "device_number" in user:
+            token = db_manager.login(user["id"], user["pw"], user["device_number"])
+            resp = {"token": token}
+
+        else:  # lack of json body.
+            status_code = 401
+            resp = {
+                "error_code": 20003,
+                "message": "login Failed",
+                "detail": "Check your request. Not enough requests."
+            }
+
+    response = app.response_class(
+        response=json.dumps(resp),
+        status=status_code,
+        mimetype='application/json'
+    )
+    return response
 
 
 @app.route("/users/logout", methods=["PUT"])
@@ -88,25 +94,41 @@ def matching(user_token):
     # matching table에 올린다. 그리고 match 테이블에서 상대가 있는지 찾아서 resp.
     # 1. d있다면 상대방의 이름(name), game_token,
 
-    #find rival in match table.
-
-    # wait인 사람이 없으면 대기 테이블로 넘어감.
+    # find rival in match table.
     rival_uuid = db_manager.get_match(user_token)
-    # if rival_uuid:
+    status_code = 200
+    if rival_uuid:
+        print("rival exist")
         # wait인 사람이 있으면 바로 매칭해서 send.
-        # rival_uuid가 1개 일 수도 있고, 아닐 수도 있음.
+        # rival_uuid가 1개 일 수도 있고, 아닐 수도 있음. > random select user & find rival name(not user_token)
+        #
+        resp = {
+            "error_code": 20003,
+            "message": "login Failed",
+            "detail": "Check your request. Not enough requests."
+        }
+        """
+        "token":"abcdefg12345",
+        "game_auth":"abc123",
+        "rival":"user1"
+        """
+    else:
+        # wait인 사람이 없으면 대기 테이블로 넘어감.
+        print("no one exist in waiting line")
+        status_code = 400
+        db_manager.set_wait()
+        resp = {
+            "error_code": 20003,
+            "message": "Failed to matching",
+            "detail": "no exist user to match"
+        }
 
-    # else:
-    #     print(db_manager.set_wait())
-
-    # # insert rival & me
-    # if rival_uuid:
-    #     response = app.response_class(
-    #         response=json.dumps(resp),
-    #         status=200,
-    #         mimetype='application/json'
-    #     )
-    #     return response
+    response = app.response_class(
+        response=json.dumps(resp),
+        status=status_code,
+        mimetype='application/json'
+    )
+    return response
 
 
 @app.route("/game/round/<game_token>/choice/<choice_num>", methods=["PUT"])
@@ -124,6 +146,7 @@ def result(game_token):
         'status': 'success',
         'round': game_token
     }
+
 
 
 if __name__ == '__main__':
