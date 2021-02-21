@@ -4,20 +4,29 @@ import uuid
 
 # import mariadb
 
-
-
 # Get Cursor
 
 USER = 100
 PROFILE = 95
-GAME = 90
-ROUND = 85
+GAME = 90# GAME > RESULT
+# ROUND = 85
+WAIT = 85
 MATCH = 80
+CHOICE = 75
+RESULT = 70
 
 
+KOREA = 10
 # id : 4-20자의 영문 소문자, 숫자, (_),(-)만 가능 : 이거 나중에 email값으로 바꿔도 될 듯
 # pw : 8~16자 영문 대 소문자, 숫자, 특수문자
 # device_num : 20자?
+
+WAITING = 0
+PLAYING = 1
+
+
+USER_CHOICE = 0
+AUTO_CHOICE = 1
 
 class DBManager:
     def __init__(self):
@@ -53,9 +62,6 @@ class DBManager:
                 new_table_list.remove(MATCH)
             elif table == "game":
                 new_table_list.remove(GAME)
-
-
-
         print("new_table_list : ", new_table_list)
         for element in new_table_list:
             print(element)
@@ -89,20 +95,36 @@ class DBManager:
                   " user_token char(36)," \
                   " country int," \
                   " win int unsigned," \
-                  " total_count int unsigned," \
+                  " total_round int unsigned," \
                   " photo int," \
                   " time datetime," \
                   "FOREIGN KEY (user_token) REFERENCES user(token)" \
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
+        elif mode == WAIT:
+            sql = "CREATE TABLE IF NOT EXISTS waiting (" \
+                  " user_token char(36) PRIMARY KEY" \
+                  " time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" \
+                  ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
         elif mode == MATCH:
             sql = "CREATE TABLE IF NOT EXISTS matches (" \
                   " user_token char(36) PRIMARY KEY," \
-                  " state int unsigned," \
+                  " rival_token char(36) UNIQUE," \
+                  " game_token char(36)" \
                   " matched_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," \
                   " CONSTRAINT matches_unique UNIQUE (user_token)"\
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
-        elif mode == GAME:
-            sql = "CREATE TABLE IF NOT EXISTS game (" \
+                    # " count_time TIMESTAMP," \
+        elif mode == CHOICE:
+            sql = "CREATE TABLE IF NOT EXISTS choice (" \
+                  " user_token char(36) PRIMARY KEY," \
+                  " choice int unsigned," \
+                  " detail int unsigned," \
+                  " matched_time TIMESTAMP," \
+                  " choice_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" \
+                  ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
+            # detail means 'user's choice or automatically choose'
+        elif mode == RESULT:
+            sql = "CREATE TABLE IF NOT EXISTS result (" \
                   " game_token char(36)," \
                   " player1 char(36)," \
                   " player1_choice int," \
@@ -124,6 +146,7 @@ class DBManager:
             self.cur.execute(sql, val)
             rows = self.cur.fetchall()
             self.conn.commit()
+            print("[join] rows : ", rows)
             return True, str()
         except pymysql.err.IntegrityError as error:
             # print(error.args[1])
@@ -135,13 +158,22 @@ class DBManager:
         self.cur.execute(sql, (id, pw, device))
         # DB결과를 모두 가져올 때 사용
         rows = self.cur.fetchall()
-        return rows[0][0]
+        print("[login] rows : ", rows)
+        return rows
 
-    def del_user(self, user_token):
-        sql = "delete from user where token=%s"
-        val = user_token
-        self.cur.execute(sql, (val))
-        self.conn.commit()
+    def del_user(self, id, pw, country):
+        try:
+            sql = "delete from user where id=%s and password=%s and country=%s"
+            val = (id, pw, country)
+            result = self.cur.execute(sql, val)
+            self.conn.commit()
+            # print("result : ", result, type(result))
+            if result == 0:
+                return False
+            else:
+                return True
+        except:
+            print(sys.exc_info())
 
     def drop_table(self, mode):
         try:
@@ -162,11 +194,60 @@ class DBManager:
             print(error.args[1])
 
     def get_match(self, user_token):
-        sql = "select user_token from matches where state=0 and user_token!=%s"
+        sql = "select user_token, state from matches where user_token!=%s"
         self.cur.execute(sql, user_token)
         rows = self.cur.fetchall()
         self.conn.commit()
         print("rows:", rows)
+        return rows
+
+    def get_user_state(self, user_token):
+        sql = "select user_token from waiting where user_token=%s"
+        self.cur.execute(sql, user_token)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        print("rows:", rows)
+        if rows:
+            return WAITING, None
+        else:
+            sql = "select game_token, rival_token from matches where user_token=%s"
+            self.cur.execute(sql, user_token)
+            matches_result = self.cur.fetchall()
+            self.conn.commit()
+            print("rows:", rows)
+            if matches_result:
+                return PLAYING, matches_result
+            else:
+                # waiting도 playing도 아닌 상황. 그 이전의 상황일 경우
+                return None, None
+
+    def insert_waiting(self, user_token):
+        sql = "INSERT INTO waiting user_token values (%s) "
+        # val = (, WAITING)
+        self.cur.execute(sql, user_token)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        return rows
+
+    def get_waiting_list(self):
+        sql = "SELECT user_token from waiting order by time ASC"
+        self.cur.execute(sql, user_token)
+        rows = self.cur.fetchall()
+        return rows
+
+    def set_match(self, user_token, rival_token, game_token):
+        # return game_token.
+        sql = "INSERT INTO matches (user_token, rival_token, game_token) values (%s, %s, %s) "
+        val = (user_token, rival_token, game_token)
+        self.cur.execute(sql, val)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        return rows
+
+    def get_match_list(self, user_token):
+        sql = "SELECT game_token, rival_token from matches WHERE user_token=%s"
+        self.cur.execute(sql, user_token)
+        rows = self.cur.fetchall()
         return rows
 
     def set_wait(self, user_token):
@@ -174,10 +255,11 @@ class DBManager:
         sql = "SELECT user_token from matches where user_token=%s"
         self.cur.execute(sql, user_token)
         rows = self.cur.fetchall()
+        print("select matches table : ", rows)
         self.conn.commit()
         if not rows: #no exist
             sql = "INSERT INTO matches (user_token, state) values (%s, %s) "
-            val = (user_token, 0)
+            val = (user_token, WAITING)
             self.cur.execute(sql, val)
             rows = self.cur.fetchall()
             self.conn.commit()
@@ -185,8 +267,67 @@ class DBManager:
         else: #exist
             return None
 
-    # def update_matching(self, user_token, rival_uuid):
-        #insert game table.
+    def rm_from_wait(self, user_token):
+        sql = "DELETE FROM waiting WHERE user_token = (%s)"
+        self.cur.execute(sql, user_token)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        return rows
+
+    def matching_success(self, player1, player2):
+        # insert game table.
+        game_token = str(uuid.uuid4())
+        sql = "INSERT INTO game (user_token, state) values (%s, %s) "
+        val = (user_token, WAITING)
+        self.cur.execute(sql, val)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        print("[matching_success] rows :", rows)
+        return rows, game_token
+
+    def get_game(self, user_token):
+        sql = "SELECT game_token from game where player1=%s or player2=%s"
+        self.cur.execute(sql, (user_token, user_token))
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        print("[get game] rows : ", rows)
+        return rows
+
+    def set_choice(self, user_token, game_token, choice, choice_time):
+        sql = "SELECT game_token from game where player1=%s or player2=%s"
+        self.cur.execute(sql, (user_token, user_token))
+        get_matched_time = self.cur.fetchall()
+        self.conn.commit()
+
+        sql = "INSERT INTO choice (user_token, choice, detail, matched_time, choice_time) values (%s, %s) "
+        val = (user_token, choice, USER_CHOICE, get_matched_time, choice_time)
+        self.cur.execute(sql, val)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        print("[set_choice] rows :", rows)
+        return rows
+
+    def get_result(self, game_token):
+        sql = "SELECT win from result where game_token=%s and win!=NULL"
+        self.cur.execute(sql, game_token)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        print("[get_result] rows : ", rows)
+        return rows
+
+    def get_choices(self, game_token):
+        sql = "SELECT user_token, choice from choice where game_token=%s"
+        self.cur.execute(sql, game_token)
+        user_token = self.cur.fetchall()
+        self.conn.commit()
+        return user_token
+
+    def get_win_record(self, user_token):
+        sql = "SELECT win, total_round from profile where user_token=%s"
+        self.cur.execute(sql, user_token)
+        win_record = self.cur.fetchall()
+        self.conn.commit()
+        return win_record
 
 
 db_manager = DBManager()
@@ -196,9 +337,17 @@ db_manager = DBManager()
 #     db_manager.drop_table(table)
 # conn.close()
 # create_table(USER)
-# join("aaa", "1434", "kkk", 1, "MAC123")
-db_manager.set_wait("b878c7be-393a-4259-8011-0772154613d9")
+# db_manager.join("aaa", "1434", "kkk", KOREA, "MAC123")
+user_token = db_manager.login("aaa", "1434", "MAC123")
+print("user_token : ", user_token)
+print(db_manager.set_wait("64138ab1-91b0-4ed7-b395-5a780f843c21"))
+# db_manager.del_user(user_token)
 
 # print(db_manager.login("aaa", "1434", "MAC123"))
-# db_manager.get_match("b878c7be-393a-4259-8011-0772154613d89")
+r_uuid = db_manager.get_user_state("64138ab1-91b0-4ed7-b395-5a780f843c21")
+if r_uuid:
+    print(r_uuid[0])
+    print("rival_r_uuid[0][0], r_uuid[0][1]")
 # conn.close()
+
+# db_manager.get_game(user_token)
