@@ -102,18 +102,17 @@ class DBManager:
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
         elif mode == WAIT:
             sql = "CREATE TABLE IF NOT EXISTS waiting (" \
-                  " user_token char(36) PRIMARY KEY" \
+                  " user_token char(36) PRIMARY KEY," \
                   " time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" \
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
         elif mode == MATCH:
             sql = "CREATE TABLE IF NOT EXISTS matches (" \
                   " user_token char(36) PRIMARY KEY," \
                   " rival_token char(36) UNIQUE," \
-                  " game_token char(36)" \
+                  " game_token char(36)," \
                   " matched_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," \
                   " CONSTRAINT matches_unique UNIQUE (user_token)"\
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
-                    # " count_time TIMESTAMP," \
         elif mode == CHOICE:
             sql = "CREATE TABLE IF NOT EXISTS choice (" \
                   " user_token char(36) PRIMARY KEY," \
@@ -122,7 +121,6 @@ class DBManager:
                   " matched_time TIMESTAMP," \
                   " choice_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" \
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
-            # detail means 'user's choice or automatically choose'
         elif mode == RESULT:
             sql = "CREATE TABLE IF NOT EXISTS result (" \
                   " game_token char(36)," \
@@ -359,25 +357,28 @@ class DBManager:
         # print("[update_profile_win] rows :", rows)
         # return rows
 
+    def logout(self, user_token):
 
-db_manager = DBManager()
-# new_table_list = [PROFILE, USER, MATCH, GAME]
-# for table in new_table_list:
-#     print(table)
-#     db_manager.drop_table(table)
-# conn.close()
-# create_table(USER)
-# db_manager.join("aaa", "1434", "kkk", KOREA, "MAC123")
-user_token = db_manager.login("aaa", "1434", "MAC123")
-print("user_token : ", user_token)
-print(db_manager.set_wait("64138ab1-91b0-4ed7-b395-5a780f843c21"))
-# db_manager.del_user(user_token)
 
-# print(db_manager.login("aaa", "1434", "MAC123"))
-r_uuid = db_manager.get_user_state("64138ab1-91b0-4ed7-b395-5a780f843c21")
-if r_uuid:
-    print(r_uuid[0])
-    print("rival_r_uuid[0][0], r_uuid[0][1]")
-# conn.close()
 
-# db_manager.get_game(user_token)
+# db_manager = DBManager()
+# # new_table_list = [PROFILE, USER, MATCH, GAME]
+# # for table in new_table_list:
+# #     print(table)
+# #     db_manager.drop_table(table)
+# # conn.close()
+# # create_table(USER)
+# # db_manager.join("aaa", "1434", "kkk", KOREA, "MAC123")
+# user_token = db_manager.login("aaa", "1434", "MAC123")
+# print("user_token : ", user_token)
+# print(db_manager.set_wait("64138ab1-91b0-4ed7-b395-5a780f843c21"))
+# # db_manager.del_user(user_token)
+# 
+# # print(db_manager.login("aaa", "1434", "MAC123"))
+# r_uuid = db_manager.get_user_state("64138ab1-91b0-4ed7-b395-5a780f843c21")
+# if r_uuid:
+#     print(r_uuid[0])
+#     print("rival_r_uuid[0][0], r_uuid[0][1]")
+# # conn.close()
+# 
+# # db_manager.get_game(user_token)
