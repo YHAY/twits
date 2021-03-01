@@ -24,9 +24,9 @@ KOREA = 10
 WAITING = 0
 PLAYING = 1
 
-
 USER_CHOICE = 0
 AUTO_CHOICE = 1
+
 
 class DBManager:
     def __init__(self):
@@ -126,11 +126,9 @@ class DBManager:
         elif mode == RESULT:
             sql = "CREATE TABLE IF NOT EXISTS result (" \
                   " game_token char(36)," \
-                  " player1 char(36)," \
-                  " player1_choice int," \
-                  " player2 char(36)," \
-                  " player2_choice int," \
-                  " win char(20),"\
+                  " player char(36)," \
+                  " player_choice int," \
+                  " win TINYINT,"\
                   " time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP" \
                   ")"  # 실행할 sql문 cur.execute(sql) # 커서로 sql문 실행
         print(sql)
@@ -307,13 +305,20 @@ class DBManager:
         print("[set_choice] rows :", rows)
         return rows
 
-    def get_result(self, game_token):
-        sql = "SELECT win from result where game_token=%s and win!=NULL"
-        self.cur.execute(sql, game_token)
+    def am_i_win(self, game_token, user_token):
+        sql = "SELECT win from result where game_token=%s and win!=NULL and player=%s"
+        val = (game_token, user_token, user_token)
+        self.cur.execute(sql, val)
         rows = self.cur.fetchall()
         self.conn.commit()
         print("[get_result] rows : ", rows)
-        return rows
+        if rows: # if result exist.
+            if rows[0][0] == user_token:
+                return True, user_token
+            else:
+                return False, user_token
+        else:
+            return False, None
 
     def get_choices(self, game_token):
         sql = "SELECT user_token, choice from choice where game_token=%s"
@@ -328,6 +333,31 @@ class DBManager:
         win_record = self.cur.fetchall()
         self.conn.commit()
         return win_record
+
+    def update_profile_win(self, user_token, win):
+        # UPDATE table_1 SET column_1 = 'x' WHERE column_2 = 'aa';
+        sql = "UPDATE profile SET win = (%s) WHERE user_token = (%s)"
+        val = (win, user_token)
+        self.cur.execute(sql, val)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        print("[update_profile_win] rows :", rows)
+        return rows
+
+    def update_result(self, game_token, user_token, win):
+        sql = "UPDATE result SET win = (%s) WHERE game_token = (%s) and user_token = (%s)"
+        val = (win, game_token, user_token)
+        self.cur.execute(sql, val)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+
+        sql = "UPDATE result SET win = (%s) WHERE game_token = (%s) and user_token != (%s)"
+        val = (not win, game_token, user_token)
+        self.cur.execute(sql, val)
+        rows = self.cur.fetchall()
+        self.conn.commit()
+        # print("[update_profile_win] rows :", rows)
+        # return rows
 
 
 db_manager = DBManager()

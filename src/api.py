@@ -10,10 +10,9 @@ db_manager = DBManager()
 
 
 # 요청을 받으면, json validator먼저 거치도록 만들것.
-WIN = 100
-LOSE = 99
-TIE = 98
-
+WIN = 1
+LOSE = 0
+TIE = 99
 
 
 @app.route("/users", methods=["POST"])
@@ -187,7 +186,7 @@ def choice(game_token, choice_num):
         # need check expired game_token?
         db_manager.set_choice(user_token, game_token, choice_num, choice_time)
         # 여기에서 result가 나올 수 있으면, result결과값을 줄까?
-        resp =  {
+        resp = {
             'game_token': game_token
         }
         response = app.response_class(
@@ -203,23 +202,32 @@ def result(game_token):
     # 시간측정할거면 여기서 해야됨.
     status_code = 200
     request_resp = request.get_json()
-    show_result = db_manager.get_result(game_token)
-    if show_result:
-        # already exist result.
-        game_result = "lose" #lose
-        win_result = show_result[0][0]
-        if "user" in request_resp:
-            if request_resp["user"] == win_result:
-                game_result = "win"
-
-            win_record = db_manager.get_win_record(request_resp["user"])
+    if "user" in request_resp:
+        win, result = db_manager.am_i_win(game_token)
+        win_record = db_manager.get_win_record(request_resp["user"])
+        if result: # win result exist in result table.
+            # already exist result. 결과가 나온상태
+            game_result = 1 if win else 0
             resp = {
                 "result": game_result,
-                "win": [win_record[0][0], win_record[0][1]],
-                "game_token":game_token
+                "win": [game_result, win_record[0][1]+1],
+                "game_token": game_token
             }
-    else:
-        set_result(game_token)
+        else:
+            # make a result. 결과를 내야하는 상태
+            rsp_result = set_result(game_token)
+            if rsp_result == WIN:
+                game_result = "win"
+            elif rsp_result == LOSE:
+                game_result = "lose"
+            else:
+                game_result = "tie"
+
+            resp = {
+                "result": game_result,
+                "win": [game_result, win_record[0][1]+1],
+                "game_token": game_token
+            }
     response = app.response_class(
         response=json.dumps(resp),
         status=status_code,
@@ -232,7 +240,7 @@ def set_result(game_token, user_token):
     # do make a result.
     user_list = db_manager.get_choices(game_token)
     if user_list:
-        if user_list > 1:
+        if len(user_list[0]) > 1:
             # 대전중인 상대가 있을때
             user_index = -1
             rival_index = -1
@@ -241,7 +249,14 @@ def set_result(game_token, user_token):
                     user_index = index
                 else:
                     rival_index = index
-            rock_scissors_paper(user_list[0][user_index], user_list[0][rival_index])
+            result = rock_scissors_paper(user_list[0][user_index], user_list[0][rival_index])
+            # profile 테이블에 기록
+            db_manager.update_profile_win(user_token, result)
+
+            # result 테이블에 기록 > 같은 game_token에 전부 업데이트.
+            db_manager.update_result(game_token, user_token, result)
+            # send result
+            return result
 
 
 def rock_scissors_paper(user_num, rival_num):
@@ -258,8 +273,6 @@ def rock_scissors_paper(user_num, rival_num):
             return WIN
         else:
             return LOSE
-
-
 
 
 if __name__ == '__main__':
