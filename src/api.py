@@ -4,6 +4,7 @@ from flask_restful import Api
 from DBManager import *
 from schema.schema_set import *
 from jsonschema import validate
+import jsonschema
 import sys
 
 app = Flask(__name__)
@@ -19,18 +20,72 @@ TIE = 99
 
 '''
 남은 일
-1. json validator전체 적용(ok)
-2. 전체 점검
-2. jwt적용
+1. json validator전체 적용(ok) > schema check (ok)
+2. 전체 동작 점검
+- 회원가입
+[POST] 127.0.0.1:5000/users
+{
+"id":"aaa",#중복되면 안 됨
+"pw":"123",
+"country":"korea",
+"device_number":"M241A1231",#중복되면....되지되지 한 기기에 두개 만들 수 있음
+}
+
+- 탈퇴
+[DELETE] 127.0.0.1:5000/users
+{
+"id":"aaa",
+"pw":"124&*&a",
+"country":"korea"
+}
+
+- 로그인
+[GET] 127.0.0.1:5000/users
+{
+"id":"aaa",
+"pw":"1212121",
+"device_number":"M241A1231"
+}
+
+- 로그아웃
+[PUT] 127.0.0.1/user/logout
+{
+"id":"aaa",
+"pw":"1212121",
+"country":"korea",
+"device_number":"M241A1231",
+"uuid":"17318-231281329-238131"
+}
+
+- 회원정보 조회
+[GET] 127.0.0.1/user/"abcdefg12345"/win
+[GET] 127.0.0.1/user/"abcdefg12345"/profile
+
+- 회원정보 변경
+
+
+- 사용자매칭
+
+
+- 사용자 선택
+- 결과요청
+
+
+3. jwt적용
+- 인증 테이블 따로 들고가는건 어떨까?
+
+4. 대략 다 되었으면 unittest 만들기
+5. swagger만들기 : 전체 구조가 좀 더 
 '''
 
 
 @app.route("/users", methods=["POST"])
 def join():
     req_body = request.get_json()
-    status_code, resp = schema_validate(req_body, matching_schema)
+    status_code, resp = schema_validate(req_body, join_schema)
+    print(resp)
     if not status_code == 401:
-        req_result, msg = db_manager.join(req_body["id"], req_body["pw"], req_body["name"], req_body["country"], req_body["device_num"])
+        req_result, msg = db_manager.join(req_body["id"], req_body["pw"], req_body["name"], req_body["country"], req_body["device_number"])
         if req_result:
             resp = {'status': 'success'}
         else:
@@ -51,7 +106,7 @@ def join():
 @app.route("/users", methods=["DELETE"])
 def del_user():
     req_body = request.get_json()
-    status_code, resp = schema_validate(req_body, matching_schema)
+    status_code, resp = schema_validate(req_body, del_user_schema)
     if not status_code == 401:
         if db_manager.del_user(req_body["id"], req_body["pw"], req_body["country"]):
             resp = {'status': 'success'}
@@ -73,11 +128,19 @@ def del_user():
 @app.route("/users", methods=["GET"])
 def login():
     req_body = request.get_json()
-    status_code, resp = schema_validate(req_body, matching_schema)
+    status_code, resp = schema_validate(req_body, login_schema)
     if not status_code == 401:
         token = db_manager.login(req_body["id"], req_body["pw"], req_body["device_number"])
         # db_manager.set_wait(token)  # add user into matches table. > 사람이 start를 누르는 순간, 들어가야함.
-        resp = {"token": token}
+        if token:  # user exist
+            resp = {"token": token[0][0]}
+        else:  # user no exist
+            status_code = 401
+            resp = {
+                "error_code": 20003,
+                "message": "Login Failed",
+                "detail": "No exist user."
+            }
 
     response = app.response_class(
         response=json.dumps(resp),
@@ -96,50 +159,50 @@ def logout():
 
 @app.route("/game/matching/<user_token>", methods=["PUT"])
 def matching(user_token):
-    # status_code = 200
-    req_body = request.get_json()
-    status_code, resp = schema_validate(req_body, matching_schema)
-    if not status_code == 401:
+    status_code = 200
+    # req_body = request.get_json()
+    # status_code, resp = schema_validate(req_body, matching_schema)
+    # if not status_code == 401:
         # matching table에 올린다. 그리고 match 테이블에서 상대가 있는지 찾아서 resp.
         # 1. d있다면 상대방의 이름(name), game_token, id
         #현재 사용자의 상태가 어떠한지 확인.
         #RESULT = user_token, state, rival_token
-        state, additional_info = db_manager.get_user_state(user_token)
-        # print("result : ", result)
-        if state:
-            # 만약 play중이라면, game테이블에서 찾아서 응답을 보내줄 것! > 지속적으로 matching으로 요청할 것이기 때문.
-            if state == PLAYING:
-            # if result[0][1] == PLAYING:
-                # db_manager.get_game(result[0][0])
-                result = db_manager.get_match_list(user_token)
-                resp = {
-                    "user_token": user_token,
-                    "game_auth": result[0][0],
-                    "rival": result[0][1]
-                }
-            # if state == PLAYING:
-            else:# waiting
-                waiting_list = db_manager.get_waiting_list()
-                if waiting_list:
-                    rival_token = waiting_list[0][0]
-                    resp = set_matching(user_token, rival_token)
-                # update count time.
-        else:
-            # waiting도 playing도 아닌 상황. 그 이전의 상황일 경우
-            # waiting테이블을 검색해서 가능한 사람있으면 바로 mathcing해서 보내고.
+    state, additional_info = db_manager.get_user_state(user_token)
+    # print("result : ", result)
+    if state:
+        # 만약 play중이라면, game테이블에서 찾아서 응답을 보내줄 것! > 지속적으로 matching으로 요청할 것이기 때문.
+        if state == PLAYING:
+        # if result[0][1] == PLAYING:
+            # db_manager.get_game(result[0][0])
+            result = db_manager.get_match_list(user_token)
+            resp = {
+                "user_token": user_token,
+                "game_auth": result[0][0],
+                "rival": result[0][1]
+            }
+        # if state == PLAYING:
+        else:# waiting
             waiting_list = db_manager.get_waiting_list()
             if waiting_list:
                 rival_token = waiting_list[0][0]
                 resp = set_matching(user_token, rival_token)
-            else:
-                # 없으면 waiting테이블에 넣기
-                # add user into waiting.
-                db_manager.insert_waiting(user_token)
-                resp = {
-                            "error_code": 20003,
-                            "message": "Failed to matching",
-                            "detail": "no exist user to match"
-                        }
+            # update count time.
+    else:
+        # waiting도 playing도 아닌 상황. 그 이전의 상황일 경우
+        # waiting테이블을 검색해서 가능한 사람있으면 바로 mathcing해서 보내고.
+        waiting_list = db_manager.get_waiting_list()
+        if waiting_list:
+            rival_token = waiting_list[0][0]
+            resp = set_matching(user_token, rival_token)
+        else:
+            # 없으면 waiting테이블에 넣기
+            # add user into waiting.
+            db_manager.insert_waiting(user_token)
+            resp = {
+                        "error_code": 20003,
+                        "message": "Failed to matching",
+                        "detail": "no exist user to match"
+                    }
 
     response = app.response_class(
         response=json.dumps(resp),
@@ -192,7 +255,7 @@ def result(game_token):
     # 시간측정할거면 여기서 해야됨.
     # status_code = 200
     req_body = request.get_json()
-    status_code, resp = schema_validate(req_body, matching_schema)
+    status_code, resp = schema_validate(req_body, result_schema)
     if not status_code == 401:
         if "user" in req_body:
             win, result = db_manager.am_i_win(game_token)
@@ -270,13 +333,13 @@ def rock_scissors_paper(user_num, rival_num):
 def schema_validate(request_body, schema_rule):
     try:
         validate(instance=request_body, schema=schema_rule)
-    except:
+    except jsonschema.exceptions.ValidationError:
         # lack of json body.
         status_code = 401
         resp = {
             "error_code": 20003,
             "message": "Matching Request Failed",
-            "detail": "Check your request. Not enough requests." + sys.exc_info()[1]
+            "detail": "Check your request. Not enough requests. " + str(sys.exc_info()[1].args[0])
         }
         return status_code, resp
     else:

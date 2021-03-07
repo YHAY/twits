@@ -357,7 +357,7 @@ class DBManager:
         # print("[update_profile_win] rows :", rows)
         # return rows
 
-    def logout(self, user_token):
+    # def logout(self, user_token):
 
 
 
