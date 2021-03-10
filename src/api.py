@@ -1,14 +1,15 @@
 from flask import Flask, json, request
-from flask_restful import Api
+# from flask_restful import Api
 
 from DBManager import *
 from schema.schema_set import *
 from jsonschema import validate
 import jsonschema
 import sys
+# import jwt
 
 app = Flask(__name__)
-api = Api(app)
+# api = Api(app)
 
 db_manager = DBManager()
 
@@ -21,8 +22,8 @@ TIE = 99
 '''
 남은 일
 1. json validator전체 적용(ok) > schema check (ok)
-2. 전체 동작 점검
-- 회원가입
+2. 전체 동작 점검(ing)
+- 회원가입(ok)
 [POST] 127.0.0.1:5000/users
 {
 "id":"aaa",#중복되면 안 됨
@@ -31,7 +32,7 @@ TIE = 99
 "device_number":"M241A1231",#중복되면....되지되지 한 기기에 두개 만들 수 있음
 }
 
-- 탈퇴
+- 탈퇴(ok)
 [DELETE] 127.0.0.1:5000/users
 {
 "id":"aaa",
@@ -39,7 +40,7 @@ TIE = 99
 "country":"korea"
 }
 
-- 로그인
+- 로그인(ok)
 [GET] 127.0.0.1:5000/users
 {
 "id":"aaa",
@@ -47,7 +48,7 @@ TIE = 99
 "device_number":"M241A1231"
 }
 
-- 로그아웃
+- 로그아웃(ok) > 내용이 없음. 추가개발 필요.
 [PUT] 127.0.0.1/user/logout
 {
 "id":"aaa",
@@ -57,26 +58,49 @@ TIE = 99
 "uuid":"17318-231281329-238131"
 }
 
-- 회원정보 조회
+- 회원정보 조회 > 내용이 없음. 추가개발 필요.
 [GET] 127.0.0.1/user/"abcdefg12345"/win
 [GET] 127.0.0.1/user/"abcdefg12345"/profile
 
-- 회원정보 변경
+- 회원정보 변경 > 내용이 없음. 추가개발 필요.
 
 
 - 사용자매칭
-
+[PUT] 127.0.0.1/game/matching/<user_token>
 
 - 사용자 선택
+[PUT] 127.0.0.1/game/round/"abc123"/choice/1
+{
+"user":"abcdefg12345",
+"datetime":"2020-07-02T08:53:01.532"
+}
+
 - 결과요청
+[GET] 127.0.0.1/game/round/"abc123"
+{
+"user":"abcdefg12345",
+"datetime":"2020-07-02T08:53:01.532"
+}
 
 
-3. jwt적용
+3. jwt적용(ing)
 - 인증 테이블 따로 들고가는건 어떨까?
 
-4. 대략 다 되었으면 unittest 만들기
-5. swagger만들기 : 전체 구조가 좀 더 
+4. 구조  class로 변경필요.
+
+4. log 기능 추가하기
+5. swagger만들기 : 전체 구조가 좀 더
+6. 대략 다 되었으면 unittest 만들기
+
+3/10
+1) readme.md업데이트
+2) jwt마무리
+3) jwt적용해서 기능 마무리 확인
+
 '''
+
+# app.config['JWT_SECRET_KEY'] = 'super-secrete'
+# jwt = JWTManager(app)
 
 
 @app.route("/users", methods=["POST"])
@@ -105,10 +129,15 @@ def join():
 
 @app.route("/users", methods=["DELETE"])
 def del_user():
+    # access_token = request.headers.get("Authorization")
+    # print("access_token : ", access_token)
+    # if access_token:
+    print("Aaa")
     req_body = request.get_json()
+    print("req_body : ", req_body)
     status_code, resp = schema_validate(req_body, del_user_schema)
     if not status_code == 401:
-        if db_manager.del_user(req_body["id"], req_body["pw"], req_body["country"]):
+        if db_manager.del_user(req_body["id"], req_body["pw"]):
             resp = {'status': 'success'}
         else:
             status_code = 401
@@ -117,6 +146,14 @@ def del_user():
                 "message": "Delete User Failed",
                 "detail": "No exist user."
             }
+
+    else:
+        status_code = 401
+        resp = {
+            "error_code": 20002,
+            "message": "Delete User Failed",
+            "detail": "Unauthorized User."
+        }
     response = app.response_class(
         response=json.dumps(resp),
         status=status_code,
@@ -126,21 +163,32 @@ def del_user():
 
 
 @app.route("/users", methods=["GET"])
+# @jwt_required
 def login():
-    req_body = request.get_json()
-    status_code, resp = schema_validate(req_body, login_schema)
-    if not status_code == 401:
-        token = db_manager.login(req_body["id"], req_body["pw"], req_body["device_number"])
-        # db_manager.set_wait(token)  # add user into matches table. > 사람이 start를 누르는 순간, 들어가야함.
-        if token:  # user exist
-            resp = {"token": token[0][0]}
-        else:  # user no exist
-            status_code = 401
-            resp = {
-                "error_code": 20003,
-                "message": "Login Failed",
-                "detail": "No exist user."
-            }
+    access_token = request.headers.get("Authorization")
+    print("access_token : ", access_token)
+    if access_token:
+        req_body = request.get_json()
+        status_code, resp = schema_validate(req_body, login_schema)
+        if not status_code == 401:
+            token = db_manager.login(req_body["id"], req_body["pw"], req_body["device_number"])
+            # db_manager.set_wait(token)  # add user into matches table. > 사람이 start를 누르는 순간, 들어가야함.
+            if token:  # user exist
+                resp = {"token": token[0][0]}
+            else:  # user no exist
+                status_code = 401
+                resp = {
+                    "error_code": 20003,
+                    "message": "Login Failed",
+                    "detail": "No exist user."
+                }
+    else:
+        status_code = 401
+        resp = {
+            "error_code": 20002,
+            "message": "Login Failed",
+            "detail": "Unauthorized User."
+        }
 
     response = app.response_class(
         response=json.dumps(resp),
@@ -154,6 +202,18 @@ def login():
 def logout():
     # 해당 사용자의 정보를 match테이블에서 지운다.
     # 해당 사용자가 혹시 waiting or matches 같은 테이블에 있으면 무조건 지웁니다.
+    return {'status': 'success'}
+
+
+@app.route("/users/<user_token>", methods=["GET"])
+def profile(user_token):
+    # Search & Return User Info.
+    return {'status': 'success'}
+
+
+@app.route("/users/<user_token>/win", methods=["GET"])
+def win(user_token):
+    # Search & Return User Win.
     return {'status': 'success'}
 
 
@@ -332,7 +392,10 @@ def rock_scissors_paper(user_num, rival_num):
 
 def schema_validate(request_body, schema_rule):
     try:
-        validate(instance=request_body, schema=schema_rule)
+        if request_body:
+            validate(instance=request_body, schema=schema_rule)
+        else:
+            print("empty body!! request_body : ", request_body)
     except jsonschema.exceptions.ValidationError:
         # lack of json body.
         status_code = 401

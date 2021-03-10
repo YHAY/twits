@@ -14,11 +14,9 @@ del_user_schema = {
     "type": "object",
     "properties": {
         "id": {"type": "string"},
-        "pw": {"type": "string"},
-        "country": {"type": "number"},
-        "device_number": {"type": "string"}
+        "pw": {"type": "string"}
     },
-    "required": ["id", "pw", "country", "device_number"]
+    "required": ["id", "pw"]
 }
 
 login_schema = {

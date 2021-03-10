@@ -52,16 +52,20 @@ class DBManager:
         rows = self.cur.fetchall()
         print("rows :", rows[0])
 
-        new_table_list = [USER, PROFILE, MATCH, GAME]
+        new_table_list = [USER, PROFILE, WAIT, MATCH, CHOICE, RESULT]
         for table in rows[0]:
             if table == "user":
                 new_table_list.remove(USER)
             elif table == "profile":
                 new_table_list.remove(PROFILE)
+            elif table == "waiting":
+                new_table_list.remove(MATCH)
             elif table == "matches":
                 new_table_list.remove(MATCH)
-            elif table == "game":
-                new_table_list.remove(GAME)
+            elif table == "choice":
+                new_table_list.remove(CHOICE)
+            elif table == "result":
+                new_table_list.remove(RESULT)
         print("new_table_list : ", new_table_list)
         for element in new_table_list:
             print(element)
@@ -85,7 +89,7 @@ class DBManager:
                   " password char(16), " \
                   " name char(20), " \
                   " country int, " \
-                  " device char(20) UNIQUE, " \
+                  " device char(20), " \
                   " time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP," \
                   " locked boolean," \
                   " token char(36) UNIQUE" \
@@ -157,10 +161,10 @@ class DBManager:
         print("[login] rows : ", rows)
         return rows
 
-    def del_user(self, id, pw, country):
+    def del_user(self, id, pw):
         try:
-            sql = "delete from user where id=%s and password=%s and country=%s"
-            val = (id, pw, country)
+            sql = "delete from user where id=%s and password=%s"
+            val = (id, pw)
             result = self.cur.execute(sql, val)
             self.conn.commit()
             # print("result : ", result, type(result))
@@ -227,7 +231,7 @@ class DBManager:
 
     def get_waiting_list(self):
         sql = "SELECT user_token from waiting order by time ASC"
-        self.cur.execute(sql, user_token)
+        self.cur.execute(sql)
         rows = self.cur.fetchall()
         return rows
 
@@ -360,13 +364,12 @@ class DBManager:
     # def logout(self, user_token):
 
 
-
-# db_manager = DBManager()
-# # new_table_list = [PROFILE, USER, MATCH, GAME]
-# # for table in new_table_list:
-# #     print(table)
-# #     db_manager.drop_table(table)
-# # conn.close()
+db_manager = DBManager()
+new_table_list = [PROFILE, USER, MATCH, GAME]
+for table in new_table_list:
+    print(table)
+    db_manager.drop_table(table)
+# conn.close()
 # # create_table(USER)
 # # db_manager.join("aaa", "1434", "kkk", KOREA, "MAC123")
 # user_token = db_manager.login("aaa", "1434", "MAC123")
